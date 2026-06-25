@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f0f14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tracker">
+<title>Symptom-Tracker</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  :root {
+    --bg: #0f0f14;
+    --surface: #1a1a24;
+    --surface2: #22222f;
+    --border: #2e2e40;
+    --accent-hrt: #c084fc;
+    --accent-lisdex: #34d399;
+    --accent-hrt-dim: #7c3aed22;
+    --accent-lisdex-dim: #10b98122;
+    --text: #e8e6f0;
+    --text-muted: #8a87a0;
+    --text-dim: #5a5770;
+    --sev1: #34d399;
+    --sev2: #fbbf24;
+    --sev3: #f87171;
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100dvh;
+    max-width: 480px;
+    margin: 0 auto;
+    padding-bottom: 84px;
+    overscroll-behavior: none;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 100%; max-width: 480px;
+    background: #13131c;
+    border-top: 1px solid var(--border);
+    display: flex;
+    z-index: 100;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav button {
+    flex: 1; background: none; border: none;
+    color: var(--text-dim);
+    padding: 12px 4px 14px;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    cursor: pointer; transition: color .2s;
+  }
+  nav button.active { color: var(--accent-hrt); }
+  nav button svg { width: 22px; height: 22px; }
+
+  /* PAGES */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* HEADER */
+  .page-header {
+    padding: 52px 20px 18px;
+  }
+  .page-header h1 { font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
+  .page-header .date { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
+
+  /* CATEGORY BLOCK */
+  .category-block {
+    margin: 0 16px 14px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .category-header {
+    padding: 13px 16px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .cat-hrt .cat-dot { background: var(--accent-hrt); }
+  .cat-lisdex .cat-dot { background: var(--accent-lisdex); }
+  .category-header h2 {
+    font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  .cat-hrt .category-header h2 { color: var(--accent-hrt); }
+  .cat-lisdex .category-header h2 { color: var(--accent-lisdex); }
+
+  /* SYMPTOM ROW */
+  .symptom-row {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .symptom-row:last-child { border-bottom: none; }
+
+  .symptom-check {
+    width: 26px; height: 26px; border-radius: 7px;
+    border: 2px solid var(--border);
+    flex-shrink: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s; background: none;
+  }
+  .symptom-check.checked-hrt { background: var(--accent-hrt); border-color: var(--accent-hrt); }
+  .symptom-check.checked-lisdex { background: var(--accent-lisdex); border-color: var(--accent-lisdex); }
+  .symptom-check svg { width: 14px; height: 14px; stroke: #fff; display: none; }
+  .symptom-check.checked-hrt svg,
+  .symptom-check.checked-lisdex svg { display: block; }
+
+  .symptom-name { flex: 1; font-size: 15px; line-height: 1.3; }
+
+  .severity-btns {
+    display: flex; gap: 5px;
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .severity-btns.visible { opacity: 1; pointer-events: auto; }
+  .sev-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 2px solid var(--border);
+    background: none; color: var(--text-muted);
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: all .15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sev-btn.active-1 { background: var(--sev1); border-color: var(--sev1); color: #000; }
+  .sev-btn.active-2 { background: var(--sev2); border-color: var(--sev2); color: #000; }
+  .sev-btn.active-3 { background: var(--sev3); border-color: var(--sev3); color: #fff; }
+
+  /* SAVE */
+  .save-wrap { padding: 8px 16px 16px; }
+  .save-btn {
+    width: 100%; padding: 16px;
+    background: linear-gradient(135deg, #7c3aed, #c084fc);
+    border: none; border-radius: var(--radius);
+    color: #fff; font-size: 16px; font-weight: 700;
+    letter-spacing: .02em; cursor: pointer;
+    transition: opacity .2s;
+    box-shadow: 0 4px 20px #7c3aed44;
+  }
+  .save-btn:active { opacity: .8; }
+
+  /* TODAY ALREADY SAVED BANNER */
+  .saved-banner {
+    display: none;
+    margin: 0 16px 14px;
+    background: var(--accent-lisdex-dim);
+    border: 1px solid var(--accent-lisdex);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 13px; color: var(--accent-lisdex);
+    font-weight: 600;
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed; top: 20px; left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: var(--accent-lisdex); color: #000;
+    padding: 10px 22px; border-radius: 20px;
+    font-size: 14px; font-weight: 700;
+    transition: transform .3s ease; z-index: 200;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* HISTORY */
+  .history-list { padding: 0 16px; }
+  .history-empty {
+    text-align: center; color: var(--text-dim);
+    padding: 60px 20px; font-size: 15px; line-height: 1.7;
+  }
+  .history-day {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .history-day-header {
+    padding: 14px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
+  }
+  .history-day-header h3 { font-size: 15px; font-weight: 600; }
+  .score-row { display: flex; gap: 7px; align-items: center; }
+  .score-badge {
+    font-size: 11px; font-weight: 700;
+    padding: 3px 8px; border-radius: 10px; letter-spacing: .03em;
+  }
+  .score-hrt { background: var(--accent-hrt-dim); color: var(--accent-hrt); }
+  .score-lisdex { background: var(--accent-lisdex-dim); color: var(--accent-lisdex); }
+  .chevron { color: var(--text-dim); transition: transform .2s; font-size: 20px; line-height: 1; }
+  .history-day.open .chevron { transform: rotate(90deg); }
+
+  .history-detail {
+    display: none;
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+  }
+  .history-day.open .history-detail { display: block; }
+
+  .detail-cat-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; margin: 12px 0 6px;
+  }
+  .detail-cat-label:first-child { margin-top: 0; }
+  .detail-cat-label.hrt { color: var(--accent-hrt); }
+  .detail-cat-label.lisdex { color: var(--accent-lisdex); }
+
+  .detail-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .detail-item:last-child { border-bottom: none; }
+  .detail-item.absent { color: var(--text-dim); }
+  .detail-sev {
+    font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 8px;
+  }
+  .sev-1 { background: #10b98122; color: var(--sev1); }
+  .sev-2 { background: #fbbf2422; color: var(--sev2); }
+  .sev-3 { background: #f8717122; color: var(--sev3); }
+  .sev-none { color: var(--text-dim); font-size: 13px; }
+
+  /* INFO */
+  .info-body { padding: 0 16px; }
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px; margin-bottom: 14px;
+  }
+  .info-card h3 {
+    font-size: 11px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; margin-bottom: 14px;
+  }
+  .info-card.hrt h3 { color: var(--accent-hrt); }
+  .info-card.lisdex h3 { color: var(--accent-lisdex); }
+  .info-item { margin-bottom: 13px; }
+  .info-item:last-child { margin-bottom: 0; }
+  .info-item strong { font-size: 14px; display: block; margin-bottom: 3px; }
+  .info-item p { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+  .info-note {
+    background: var(--surface2);
+    border-left: 3px solid var(--accent-hrt);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 14px 16px; margin-bottom: 14px;
+    font-size: 13px; color: var(--text-muted); line-height: 1.65;
+  }
+  .info-note strong { color: var(--text); font-size: 14px; display: block; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<!-- PAGE: HEUTE -->
+<div class="page active" id="page-heute">
+  <div class="page-header">
+    <h1>Heute</h1>
+    <div class="date" id="heute-date"></div>
+  </div>
+
+  <div class="saved-banner" id="saved-banner">✓ Heute bereits gespeichert — Änderungen überschreiben den Eintrag.</div>
+
+  <div class="category-block cat-hrt">
+    <div class="category-header">
+      <div class="cat-dot"></div>
+      <h2>HRT / Zyklus</h2>
+    </div>
+    <div id="symptoms-hrt"></div>
+  </div>
+
+  <div class="category-block cat-lisdex">
+    <div class="category-header">
+      <div class="cat-dot"></div>
+      <h2>Lisdex</h2>
+    </div>
+    <div id="symptoms-lisdex"></div>
+  </div>
+
+  <div class="save-wrap">
+    <button class="save-btn" onclick="saveDay()">Eintrag speichern</button>
+  </div>
+</div>
+
+<!-- PAGE: HISTORIE -->
+<div class="page" id="page-historie">
+  <div class="page-header">
+    <h1>Historie</h1>
+    <div class="date">Alle gespeicherten Tage</div>
+  </div>
+  <div class="history-list" id="history-list"></div>
+</div>
+
+<!-- PAGE: INFO -->
+<div class="page" id="page-info">
+  <div class="page-header">
+    <h1>Info</h1>
+    <div class="date">Symptome &amp; Zusammenhänge</div>
+  </div>
+  <div class="info-body">
+    <div class="info-card hrt">
+      <h3>HRT / Zyklus — Östrogen-sensitiv</h3>
+      <div class="info-item">
+        <strong>Arbeitsgedächtnis</strong>
+        <p>Östrogen moduliert direkt den präfrontalen Kortex und Hippocampus; in der Menopause einer der ersten kognitiven Bereiche, die leiden.</p>
+      </div>
+      <div class="info-item">
+        <strong>Fokus</strong>
+        <p>Ähnlicher Mechanismus wie das Arbeitsgedächtnis — stark hormonabhängig.</p>
+      </div>
+      <div class="info-item">
+        <strong>Emotionale Instabilität</strong>
+        <p>Klassisch perimenopausales Symptom durch Östrogen- und Progesteronschwankungen.</p>
+      </div>
+    </div>
+
+    <div class="info-card lisdex">
+      <h3>Lisdex — Medikamentenwirkung / ADHS-Kernsymptome</h3>
+      <div class="info-item">
+        <strong>Dinge nicht geordnet tun können</strong>
+        <p>Planungs- und Sequenzierungsprobleme — typisch exekutive Dysfunktion.</p>
+      </div>
+      <div class="info-item">
+        <strong>Task-switching</strong>
+        <p>Kognitive Flexibilität, direkt auf Dopamin angewiesen → Lisdexamfetamin-responsiv.</p>
+      </div>
+      <div class="info-item">
+        <strong>Innere Unruhe</strong>
+        <p>Bei ADHS oft das subjektive Korrelat von Hyperaktivität.</p>
+      </div>
+    </div>
+
+    <div class="info-note">
+      <strong>Überschneidung</strong>
+      Östrogenmangel <em>verschlechtert</em> die Dopaminsignalgebung, weshalb ADHS-Symptome in der Perimenopause oft stärker werden. Die beiden Kategorien tracken damit zwei Stellschrauben desselben Systems.
+    </div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <button class="active" onclick="showPage('heute', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+    Heute
+  </button>
+  <button onclick="showPage('historie', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+    Historie
+  </button>
+  <button onclick="showPage('info', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="16" x2="12" y2="12"/>
+      <line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+    Info
+  </button>
+</nav>
+
+<div class="toast" id="toast">Eintrag gespeichert ✓</div>
+
+<script>
+const SYMPTOMS = {
+  hrt: ['Arbeitsgedächtnis', 'Fokus', 'Emotionale Instabilität'],
+  lisdex: ['Dinge nicht geordnet tun können', 'Task-switching', 'Innere Unruhe']
+};
+
+let state = { hrt: {}, lisdex: {} };
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatDate(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('symptom-history')) || {}; } catch { return {}; }
+}
+
+function checkSavedBanner() {
+  const history = getHistory();
+  const banner = document.getElementById('saved-banner');
+  if (history[todayKey()]) {
+    banner.style.display = 'block';
+    // Pre-fill with saved data
+    state = JSON.parse(JSON.stringify(history[todayKey()]));
+  } else {
+    banner.style.display = 'none';
+    state = { hrt: {}, lisdex: {} };
+  }
+  renderCategory('hrt');
+  renderCategory('lisdex');
+}
+
+function renderToday() {
+  document.getElementById('heute-date').textContent = formatDate(todayKey());
+  checkSavedBanner();
+}
+
+function renderCategory(cat) {
+  const container = document.getElementById('symptoms-' + cat);
+  container.innerHTML = '';
+  SYMPTOMS[cat].forEach(name => {
+    const s = state[cat][name] || { checked: false, sev: 0 };
+    const row = document.createElement('div');
+    row.className = 'symptom-row';
+    row.innerHTML = `
+      <button class="symptom-check ${s.checked ? 'checked-' + cat : ''}"
+              onclick="toggleSymptom('${cat}','${name}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="3"
+             stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </button>
+      <span class="symptom-name">${name}</span>
+      <div class="severity-btns ${s.checked ? 'visible' : ''}">
+        <button class="sev-btn ${s.sev===1?'active-1':''}" onclick="setSev('${cat}','${name}',1)">1</button>
+        <button class="sev-btn ${s.sev===2?'active-2':''}" onclick="setSev('${cat}','${name}',2)">2</button>
+        <button class="sev-btn ${s.sev===3?'active-3':''}" onclick="setSev('${cat}','${name}',3)">3</button>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function toggleSymptom(cat, name) {
+  if (!state[cat][name]) state[cat][name] = { checked: false, sev: 0 };
+  state[cat][name].checked = !state[cat][name].checked;
+  if (!state[cat][name].checked) state[cat][name].sev = 0;
+  renderCategory(cat);
+}
+
+function setSev(cat, name, val) {
+  if (!state[cat][name]) state[cat][name] = { checked: true, sev: 0 };
+  state[cat][name].sev = state[cat][name].sev === val ? 0 : val;
+  renderCategory(cat);
+}
+
+function saveDay() {
+  const history = getHistory();
+  history[todayKey()] = JSON.parse(JSON.stringify(state));
+  localStorage.setItem('symptom-history', JSON.stringify(history));
+  document.getElementById('saved-banner').style.display = 'block';
+  showToast();
+}
+
+function showToast() {
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// HISTORY
+function renderHistory() {
+  const container = document.getElementById('history-list');
+  const history = getHistory();
+  const keys = Object.keys(history).sort().reverse();
+  if (keys.length === 0) {
+    container.innerHTML = '<div class="history-empty">Noch keine Einträge.<br>Tracke deinen ersten Tag!</div>';
+    return;
+  }
+  container.innerHTML = '';
+  keys.forEach(dateKey => {
+    const entry = history[dateKey];
+    const card = document.createElement('div');
+    card.className = 'history-day';
+
+    const hrtChecked = SYMPTOMS.hrt.filter(s => entry.hrt?.[s]?.checked);
+    const lisdexChecked = SYMPTOMS.lisdex.filter(s => entry.lisdex?.[s]?.checked);
+    const hrtSum = hrtChecked.reduce((a, s) => a + (entry.hrt[s].sev || 0), 0);
+    const lisdexSum = lisdexChecked.reduce((a, s) => a + (entry.lisdex[s].sev || 0), 0);
+
+    card.innerHTML = `
+      <div class="history-day-header" onclick="this.parentElement.classList.toggle('open')">
+        <h3>${formatDate(dateKey)}</h3>
+        <div class="score-row">
+          <span class="score-badge score-hrt">HRT ${hrtSum}</span>
+          <span class="score-badge score-lisdex">LDX ${lisdexSum}</span>
+          <span class="chevron">›</span>
+        </div>
+      </div>
+      <div class="history-detail">
+        ${detailSection('hrt', entry.hrt || {})}
+        ${detailSection('lisdex', entry.lisdex || {})}
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function detailSection(cat, data) {
+  const label = cat === 'hrt' ? 'HRT / Zyklus' : 'Lisdex';
+  let html = `<div class="detail-cat-label ${cat}">${label}</div>`;
+  SYMPTOMS[cat].forEach(name => {
+    const s = data[name];
+    const checked = s?.checked;
+    const sev = s?.sev || 0;
+    html += `<div class="detail-item ${checked ? '' : 'absent'}">
+      <span>${name}</span>
+      ${checked
+        ? `<span class="detail-sev sev-${sev}">${sev > 0 ? 'Schwere ' + sev : 'vorhanden'}</span>`
+        : `<span class="sev-none">—</span>`}
+    </div>`;
+  });
+  return html;
+}
+
+// NAV
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'historie') renderHistory();
+}
+
+// SERVICE WORKER
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(console.warn);
+}
+
+// INIT
+renderToday();
+</script>
+</body>
+</html>
